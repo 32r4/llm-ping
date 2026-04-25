@@ -1,0 +1,33 @@
+{
+  "name": "llm-ping",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker app for discovering OpenAI-compatible models and invoking a selected model.",
+  "scripts": {
+    "build": "npm run build:web",
+    "build:web": "node ./scripts/build-web.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "npm run check:worker && npm run check:web",
+    "check:worker": "tsc --noEmit",
+    "check:web": "tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "hono",
+    "openai-compatible"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "hono": "^4.10.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5",
+    "wrangler": "^4.85.0"
+  }
+}

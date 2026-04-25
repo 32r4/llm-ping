@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM Ping</title>
+    <meta
+      name="description"
+      content="Use a Cloudflare Worker to discover available models and verify a minimal invocation."
+    />
+    <script>
+      (() => {
+        let storedTheme = null;
+        try {
+          storedTheme = localStorage.getItem("llm-ping:theme");
+        } catch {
+          storedTheme = null;
+        }
+        const theme =
+          storedTheme === "dark" || storedTheme === "light"
+            ? storedTheme
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orbit orbit-a"></div>
+    <div class="bg-orbit orbit-b"></div>
+    <div class="bg-grid"></div>
+
+    <main class="shell">
+      <div class="top-actions shell-actions">
+        <button
+          id="probe-directory-trigger"
+          class="icon-button"
+          type="button"
+          disabled
+          title="Open model directory"
+          aria-haspopup="dialog"
+          aria-label="Open model directory"
+        >
+          <span class="probe-icon" aria-hidden="true">&#9678;</span>
+        </button>
+        <button id="history-trigger" class="icon-button" type="button" aria-label="Open history">
+          <span aria-hidden="true">&#9719;</span>
+          <small id="history-count">0</small>
+        </button>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch to dark theme">
+          <span class="theme-icon" data-theme-icon aria-hidden="true">&#9782;</span>
+        </button>
+      </div>
+
+      <section class="workspace">
+        <section class="control-stack">
+          <form id="connect-form" class="action-module">
+            <div class="field-group">
+              <div class="pair-row pair-row-lamp">
+                <input
+                  id="baseUrl"
+                  name="baseUrl"
+                  type="url"
+                  inputmode="url"
+                  aria-label="Base URL"
+                  placeholder="Base URL"
+                  required
+                />
+                <button
+                  id="raw-models-trigger"
+                  class="lamp-button is-idle"
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label="View /v1/models response"
+                >
+                  <span class="signal-dot" aria-hidden="true"></span>
+                  <span id="raw-models-state" class="sr-only">Idle</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="pair-row pair-row-action">
+                <input
+                  id="apiKey"
+                  name="apiKey"
+                  type="password"
+                  autocomplete="off"
+                  aria-label="API Key"
+                  placeholder="API Key"
+                  required
+                />
+                <button id="load-models-btn" class="action action-load" type="submit" aria-label="Load models">
+                  <span class="sr-only">Load models</span>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <form id="invoke-form" class="action-module">
+            <div class="field-group">
+              <div class="pair-row pair-row-lamp">
+                <div id="api-mode-picker" class="picker picker-readonly">
+                  <input
+                    id="api-mode-display"
+                    type="text"
+                    value="Responses API"
+                    readonly
+                    role="combobox"
+                    aria-label="Select API"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-controls="api-mode-panel"
+                    aria-activedescendant=""
+                  />
+                  <input id="api-mode" name="apiMode" type="hidden" value="responses" />
+                  <span class="picker-caret" aria-hidden="true"></span>
+                  <div id="api-mode-panel" class="picker-panel hidden" aria-hidden="true">
+                    <div id="api-mode-list" class="picker-list" role="listbox" aria-label="API list"></div>
+                  </div>
+                </div>
+                <button
+                  id="raw-invoke-trigger"
+                  class="lamp-button is-idle"
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label="View invoked endpoint response"
+                >
+                  <span class="signal-dot" aria-hidden="true"></span>
+                  <span id="raw-invoke-state" class="sr-only">Idle</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="pair-row pair-row-action">
+                <div id="model-combobox" class="picker picker-search is-disabled">
+                  <input
+                    id="model"
+                    name="model"
+                    type="text"
+                    placeholder="Search or select a model..."
+                    autocomplete="off"
+                    disabled
+                    role="combobox"
+                    aria-label="Select model"
+                    aria-autocomplete="list"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-controls="model-panel"
+                    aria-activedescendant=""
+                  />
+                  <span class="picker-caret" aria-hidden="true"></span>
+                  <div id="model-panel" class="picker-panel hidden" aria-hidden="true">
+                    <div id="model-list" class="picker-list" role="listbox" aria-label="Model list">
+                      <div class="picker-empty">No models available</div>
+                    </div>
+                  </div>
+                </div>
+                <button id="invoke-btn" class="action secondary action-invoke" type="submit" disabled aria-label="Invoke model">
+                  <span class="sr-only">Invoke model</span>
+                </button>
+              </div>
+            </div>
+
+            <input id="prompt" name="prompt" class="sr-only" type="text" value="hi" />
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden" aria-hidden="true" role="status" aria-live="polite">
+      <div class="toast-body">
+        <strong id="toast-title">Request failed</strong>
+        <p id="toast-message">The request did not complete.</p>
+      </div>
+      <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss notification">x</button>
+    </div>
+
+    <div id="raw-modal" class="modal hidden" aria-hidden="true">
+      <div id="raw-modal-backdrop" class="modal-backdrop"></div>
+      <section class="modal-dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="raw-modal-title">
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">Upstream</p>
+            <h2 id="raw-modal-title">Raw response</h2>
+          </div>
+          <button id="raw-modal-close" class="ghost" type="button" aria-label="Close dialog">Close</button>
+        </div>
+
+        <pre id="raw-modal-json" class="result-json">No content yet.</pre>
+      </section>
+    </div>
+
+    <div id="history-modal" class="modal hidden" aria-hidden="true">
+      <div id="history-modal-backdrop" class="modal-backdrop"></div>
+      <section class="modal-dialog history-dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">History</p>
+            <h2 id="history-modal-title">Recent history</h2>
+          </div>
+          <div class="modal-actions">
+            <button id="clear-history-btn" class="ghost" type="button">Clear</button>
+            <button id="history-modal-close" class="ghost" type="button" aria-label="Close history">Close</button>
+          </div>
+        </div>
+
+        <div id="history-list" class="history-list">
+          <div class="history-empty">No history yet.</div>
+        </div>
+      </section>
+    </div>
+
+    <div id="probe-modal" class="modal hidden" aria-hidden="true">
+      <div id="probe-modal-backdrop" class="modal-backdrop"></div>
+      <section class="modal-dialog probe-dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="probe-modal-title">
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">Batch Probe</p>
+            <h2 id="probe-modal-title">Model Directory (0)</h2>
+          </div>
+          <div class="modal-actions probe-actions">
+            <small id="probe-progress" class="probe-progress">Load models first</small>
+            <button id="probe-select-all-btn" class="ghost probe-toggle" type="button" disabled>Select All</button>
+            <button id="probe-deselect-all-btn" class="ghost probe-toggle" type="button" disabled>Deselect All</button>
+            <button id="probe-selected-btn" class="ghost probe-primary" type="button" disabled>
+              Test Selected Models
+            </button>
+            <button id="probe-modal-close" class="ghost" type="button" aria-label="Close model directory">Close</button>
+          </div>
+        </div>
+
+        <section class="probe-table" aria-labelledby="probe-modal-title">
+          <div class="probe-table-scroll">
+            <table class="probe-grid">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Latency</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="probe-table-body">
+                <tr class="probe-empty-row">
+                  <td colspan="3" class="probe-empty">Load models to open the directory.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

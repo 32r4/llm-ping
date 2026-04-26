@@ -67,12 +67,20 @@ const probeSelectAllBtn = query("#probe-select-all-btn");
 const probeDeselectAllBtn = query("#probe-deselect-all-btn");
 const probeSelectedBtn = query("#probe-selected-btn");
 const probeTableBody = query("#probe-table-body");
+const httpWarningModal = query("#http-warning-modal");
+const httpWarningBackdrop = query("#http-warning-backdrop");
+const httpWarningCancel = query("#http-warning-cancel");
+const httpWarningConfirm = query("#http-warning-confirm");
 const loadModelsBtn = query("#load-models-btn");
 const invokeBtn = query("#invoke-btn");
 const rawModelsTrigger = query("#raw-models-trigger");
 const rawInvokeTrigger = query("#raw-invoke-trigger");
 const rawModelsState = query("#raw-models-state");
 const rawInvokeState = query("#raw-invoke-state");
+const rawModelsTtfb = query("#raw-models-ttfb");
+const rawModelsTotal = query("#raw-models-total");
+const rawInvokeTtfb = query("#raw-invoke-ttfb");
+const rawInvokeTotal = query("#raw-invoke-total");
 const rawModal = query("#raw-modal");
 const rawModalBackdrop = query("#raw-modal-backdrop");
 const rawModalClose = query("#raw-modal-close");
@@ -87,11 +95,15 @@ const appMain = maybeQuery("main");
 const rawSignalMap = {
   models: {
     button: rawModelsTrigger,
-    label: rawModelsState
+    label: rawModelsState,
+    ttfb: rawModelsTtfb,
+    total: rawModelsTotal
   },
   invoke: {
     button: rawInvokeTrigger,
-    label: rawInvokeState
+    label: rawInvokeState,
+    ttfb: rawInvokeTtfb,
+    total: rawInvokeTotal
   }
 };
 
@@ -136,10 +148,18 @@ const modalConfigs = {
     initialFocus: probeModalClose,
     fallbackFocus: probeDirectoryTrigger,
     returnFocus: null
+  },
+  httpWarning: {
+    root: httpWarningModal,
+    dialog: httpWarningModal,
+    initialFocus: httpWarningCancel,
+    fallbackFocus: loadModelsBtn,
+    returnFocus: null
   }
 };
 
 let activeModal = null;
+let acknowledgedInsecureBaseUrl = "";
 
 const isFocusable = (element) => {
   if (!element || element.disabled) {
@@ -267,6 +287,36 @@ const setSignalState = (scope, stateName, summary) => {
   mapping.label.textContent = summary;
 };
 
+const setSignalMetrics = (scope, timing) => {
+  const mapping = rawSignalMap[scope];
+  const hasTiming = timing?.ttfbMs != null || timing?.totalMs != null;
+  mapping.ttfb.parentElement?.classList.toggle("is-hidden", !hasTiming);
+  const ttfb = timing?.ttfbMs == null ? "--" : timing.ttfbMs + "ms";
+  const total = timing?.totalMs == null ? "--" : timing.totalMs + "ms";
+  mapping.ttfb.textContent = "ttfbms " + ttfb;
+  mapping.total.textContent = "totalms " + total;
+};
+
+const ensureCompletedTiming = (payload, startedAt) => {
+  if (!payload || payload.ok || !startedAt) {
+    return payload;
+  }
+
+  const hasTiming = payload.timing?.ttfbMs != null || payload.timing?.totalMs != null;
+  if (hasTiming) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    timing: {
+      ...(payload.timing ?? {}),
+      ttfbMs: null,
+      totalMs: Date.now() - startedAt
+    }
+  };
+};
+
 const getStored = (key, fallback) => {
   try {
     const value = localStorage.getItem(key);
@@ -296,6 +346,16 @@ const inferApiMode = (baseUrl) => {
     return "chat_completions";
   }
 };
+
+const getBaseUrlProtocol = (baseUrl) => {
+  try {
+    return new URL(baseUrl).protocol;
+  } catch {
+    return null;
+  }
+};
+
+const shouldWarnForInsecureBaseUrl = (baseUrl) => getBaseUrlProtocol(baseUrl) === "http:";
 
 const getStoredForm = () => getStored(storageKeys.form, {});
 
@@ -361,21 +421,30 @@ const renderRawSignals = () => {
   for (const scope of ["models", "invoke"]) {
     const descriptor = getSignalDescriptor(scope);
     setSignalState(scope, descriptor.status, descriptor.summary);
+    const payload = scope === "models" ? state.lastModelsResult : state.lastInvokeResult;
+    setSignalMetrics(scope, payload?.timing ?? null);
   }
 };
 
 const setInvokePending = (pending) => {
   setSignalState("invoke", pending ? "pending" : "idle", pending ? "Running" : "Idle");
+  if (pending) {
+    setSignalMetrics("invoke", null);
+  }
 };
 
 const setModelsPending = (pending) => {
   setSignalState("models", pending ? "pending" : "idle", pending ? "Running" : "Idle");
+  if (pending) {
+    setSignalMetrics("models", null);
+  }
 };
 
 const resetInvokeSignal = () => {
   state.lastInvokeResult = null;
   state.lastInvokeEndpointPath = null;
   setSignalState("invoke", "idle", "Idle");
+  setSignalMetrics("invoke", null);
 };
 
 const closePicker = ({ container, input, panel }) => {
@@ -1171,8 +1240,8 @@ const hydrateModelSelection = () => {
   saveForm();
 };
 
-connectForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+const submitLoadModels = async () => {
+  const startedAt = Date.now();
   saveForm();
   state.lastModelsResult = null;
   clearModelSelection();
@@ -1184,7 +1253,7 @@ connectForm.addEventListener("submit", async (event) => {
       apiKey: apiKeyInput.value.trim(),
       baseUrl: baseUrlInput.value.trim()
     });
-    const payload = result.payload;
+    const payload = ensureCompletedTiming(result.payload, startedAt);
     state.lastModelsResult = payload;
     renderRawSignals();
 
@@ -1219,7 +1288,7 @@ connectForm.addEventListener("submit", async (event) => {
         provider: null
       },
       models: [],
-      timing: { totalMs: null },
+      timing: { ttfbMs: null, totalMs: Date.now() - startedAt },
       error: { message: errorMessage },
       warnings: []
     };
@@ -1237,6 +1306,24 @@ connectForm.addEventListener("submit", async (event) => {
       setModelsPending(false);
     }
   }
+};
+
+const confirmInsecureModelsRequest = async () => {
+  closeModal(modalConfigs.httpWarning, false);
+  acknowledgedInsecureBaseUrl = baseUrlInput.value.trim();
+  await submitLoadModels();
+};
+
+connectForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const baseUrl = baseUrlInput.value.trim();
+
+  if (shouldWarnForInsecureBaseUrl(baseUrl) && acknowledgedInsecureBaseUrl !== baseUrl) {
+    openModal(modalConfigs.httpWarning, loadModelsBtn);
+    return;
+  }
+
+  await submitLoadModels();
 });
 
 invokeForm.addEventListener("submit", async (event) => {
@@ -1245,6 +1332,7 @@ invokeForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const startedAt = Date.now();
   saveForm();
   invokeBtn.disabled = true;
   state.lastInvokeResult = null;
@@ -1261,7 +1349,7 @@ invokeForm.addEventListener("submit", async (event) => {
       model: state.selectedModel,
       messages: [{ role: "user", content: promptInput.value.trim() || "hi" }]
     });
-    const payload = result.payload;
+    const payload = ensureCompletedTiming(result.payload, startedAt);
     state.lastInvokeResult = payload;
     renderRawSignals();
 
@@ -1296,7 +1384,7 @@ invokeForm.addEventListener("submit", async (event) => {
         status: null,
         outputPreview: null
       },
-      timing: { totalMs: null },
+      timing: { ttfbMs: null, totalMs: Date.now() - startedAt },
       error: { message: errorMessage },
       warnings: []
     };
@@ -1345,6 +1433,15 @@ historyModalClose.addEventListener("click", closeHistoryModal);
 historyModalBackdrop.addEventListener("click", closeHistoryModal);
 probeModalClose.addEventListener("click", closeProbeModal);
 probeModalBackdrop.addEventListener("click", closeProbeModal);
+httpWarningCancel.addEventListener("click", () => {
+  closeModal(modalConfigs.httpWarning);
+});
+httpWarningBackdrop.addEventListener("click", () => {
+  closeModal(modalConfigs.httpWarning);
+});
+httpWarningConfirm.addEventListener("click", () => {
+  void confirmInsecureModelsRequest();
+});
 toastClose.addEventListener("click", closeToast);
 
 apiModePicker.addEventListener("click", (event) => {
@@ -1402,6 +1499,12 @@ modelInput.addEventListener("input", () => {
   }
 
   openPicker(modelPickerConfig, false);
+});
+
+baseUrlInput.addEventListener("input", () => {
+  if (acknowledgedInsecureBaseUrl && acknowledgedInsecureBaseUrl !== baseUrlInput.value.trim()) {
+    acknowledgedInsecureBaseUrl = "";
+  }
 });
 
 baseUrlInput.addEventListener("change", () => {

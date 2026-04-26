@@ -137,8 +137,8 @@ export const validateBaseUrl = (baseUrl: string) => {
     throw new AppError("invalid_base_url", "baseUrl must be a valid URL.", 400);
   }
 
-  if (parsed.protocol !== "https:") {
-    throw new AppError("invalid_base_url", "Only https:// baseUrl values are allowed.", 400);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new AppError("invalid_base_url", "Only http:// or https:// baseUrl values are allowed.", 400);
   }
 
   if (parsed.username || parsed.password) {

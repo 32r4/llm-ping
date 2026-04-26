@@ -69,16 +69,22 @@
                   placeholder="Base URL"
                   required
                 />
-                <button
-                  id="raw-models-trigger"
-                  class="lamp-button is-idle"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="View /v1/models response"
-                >
-                  <span class="signal-dot" aria-hidden="true"></span>
-                  <span id="raw-models-state" class="sr-only">Idle</span>
-                </button>
+                <div class="signal-cluster">
+                  <button
+                    id="raw-models-trigger"
+                    class="lamp-button is-idle"
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-label="View /v1/models response"
+                  >
+                    <span class="signal-dot" aria-hidden="true"></span>
+                    <span id="raw-models-state" class="sr-only">Idle</span>
+                  </button>
+                  <span id="raw-models-metrics" class="signal-metrics is-hidden" aria-live="polite">
+                    <span id="raw-models-ttfb">ttfbms --</span>
+                    <span id="raw-models-total">totalms --</span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -122,16 +128,22 @@
                     <div id="api-mode-list" class="picker-list" role="listbox" aria-label="API list"></div>
                   </div>
                 </div>
-                <button
-                  id="raw-invoke-trigger"
-                  class="lamp-button is-idle"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="View invoked endpoint response"
-                >
-                  <span class="signal-dot" aria-hidden="true"></span>
-                  <span id="raw-invoke-state" class="sr-only">Idle</span>
-                </button>
+                <div class="signal-cluster">
+                  <button
+                    id="raw-invoke-trigger"
+                    class="lamp-button is-idle"
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-label="View invoked endpoint response"
+                  >
+                    <span class="signal-dot" aria-hidden="true"></span>
+                    <span id="raw-invoke-state" class="sr-only">Idle</span>
+                  </button>
+                  <span id="raw-invoke-metrics" class="signal-metrics is-hidden" aria-live="polite">
+                    <span id="raw-invoke-ttfb">ttfbms --</span>
+                    <span id="raw-invoke-total">totalms --</span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -252,6 +264,39 @@
             </table>
           </div>
         </section>
+      </section>
+    </div>
+
+    <div id="http-warning-modal" class="modal hidden" aria-hidden="true">
+      <div id="http-warning-backdrop" class="modal-backdrop"></div>
+      <section
+        class="modal-dialog warning-dialog"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="http-warning-title"
+      >
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">Security Notice</p>
+            <h2 id="http-warning-title">Continue with an HTTP base URL?</h2>
+          </div>
+          <button id="http-warning-cancel" class="ghost" type="button" aria-label="Cancel insecure request">
+            Cancel
+          </button>
+        </div>
+
+        <div class="warning-copy">
+          <p>
+            This upstream does not use HTTPS. Your API key, request body, and model response may be visible or modified
+            in transit.
+          </p>
+          <p>Only continue if you trust this provider and are using a non-sensitive key.</p>
+        </div>
+
+        <div class="modal-actions warning-actions">
+          <button id="http-warning-confirm" class="ghost probe-primary" type="button">Continue anyway</button>
+        </div>
       </section>
     </div>
 

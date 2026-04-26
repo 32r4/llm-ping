@@ -45,7 +45,7 @@ npm run build:html
 - 当前没有必填环境变量
 - Worker 配置文件为 `wrangler.jsonc`
 - 主要运行时输入为 `apiKey`、`baseUrl`、`apiMode`、`model` 或 `modelIds`、`messages`
-- Worker 代理模式只接受 `https://` 上游地址
+- Worker 代理模式接受公开的 `http://` 和 `https://` 上游地址，使用 `http://` 时点击 `Load models` 会先弹出风险提醒
 - 本地单文件 HTML 模式可直接从浏览器请求上游服务，需要上游支持 CORS
 
 ## HTTP API
@@ -64,7 +64,7 @@ curl -X POST http://127.0.0.1:8787/api/invoke \
     "apiKey": "sk-xxx",
     "baseUrl": "https://api.openai.com",
     "apiMode": "responses",
-    "model": "gpt-4.1-mini",
+    "model": "gpt-5.4-mini",
     "messages": [
       { "role": "user", "content": "hi" }
     ]

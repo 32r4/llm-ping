@@ -1,4 +1,5 @@
 import { AppError } from "../errors";
+import { getNowMs } from "../time/get-now-ms";
 
 type FetchJsonOptions = {
   url: string;
@@ -71,7 +72,7 @@ export const fetchTextWithTiming = async ({
   fetchImpl = fetch
 }: FetchJsonOptions): Promise<FetchJsonResult> => {
   const controller = new AbortController();
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
   const timeout = setTimeout(() => controller.abort("timeout"), timeoutMs);
 
   try {
@@ -79,9 +80,9 @@ export const fetchTextWithTiming = async ({
       ...init,
       signal: controller.signal
     });
-    const ttfbMs = Date.now() - startedAt;
+    const ttfbMs = getNowMs() - startedAt;
     const text = await readResponseText(response, maxChars);
-    const totalMs = Date.now() - startedAt;
+    const totalMs = getNowMs() - startedAt;
 
     return {
       response,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fetchTextWithTiming } from "../src/core/http/fetch-json";
 
@@ -18,6 +18,10 @@ const makeStream = (chunks: string[], onPull?: () => void) =>
       controller.enqueue(encoder.encode(nextChunk));
     }
   });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("fetchTextWithTiming", () => {
   it("reads streamed text under the configured limit", async () => {
@@ -92,5 +96,25 @@ describe("fetchTextWithTiming", () => {
     });
 
     expect(readerRequests).toBe(0);
+  });
+
+  it("uses monotonic timing values when performance.now is available", async () => {
+    vi.spyOn(performance, "now")
+      .mockReturnValueOnce(100.25)
+      .mockReturnValueOnce(101.5)
+      .mockReturnValueOnce(102.75);
+
+    const result = await fetchTextWithTiming({
+      url: "https://api.example.com/v1/models",
+      init: { method: "GET" },
+      fetchImpl: async () =>
+        new Response(makeStream(["ok"]), {
+          status: 200,
+          headers: { "content-type": "text/plain" }
+        })
+    });
+
+    expect(result.ttfbMs).toBeCloseTo(1.25, 5);
+    expect(result.totalMs).toBeCloseTo(2.5, 5);
   });
 });

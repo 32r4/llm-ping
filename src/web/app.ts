@@ -1,4 +1,5 @@
 import { sendInvokeRequest, sendModelsRequest, sendProbeRequest } from "./api-client";
+import { ensureCompletedTiming, formatDurationMs, getNowMs, hasTimingValues } from "./timing";
 
 const storageKeys = {
   theme: "llm-ping:theme",
@@ -289,32 +290,12 @@ const setSignalState = (scope, stateName, summary) => {
 
 const setSignalMetrics = (scope, timing) => {
   const mapping = rawSignalMap[scope];
-  const hasTiming = timing?.ttfbMs != null || timing?.totalMs != null;
+  const hasTiming = hasTimingValues(timing ?? null);
   mapping.ttfb.parentElement?.classList.toggle("is-hidden", !hasTiming);
-  const ttfb = timing?.ttfbMs == null ? "--" : timing.ttfbMs + "ms";
-  const total = timing?.totalMs == null ? "--" : timing.totalMs + "ms";
+  const ttfb = formatDurationMs(timing?.ttfbMs);
+  const total = formatDurationMs(timing?.totalMs);
   mapping.ttfb.textContent = "ttfbms " + ttfb;
   mapping.total.textContent = "totalms " + total;
-};
-
-const ensureCompletedTiming = (payload, startedAt) => {
-  if (!payload || payload.ok || !startedAt) {
-    return payload;
-  }
-
-  const hasTiming = payload.timing?.ttfbMs != null || payload.timing?.totalMs != null;
-  if (hasTiming) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    timing: {
-      ...(payload.timing ?? {}),
-      ttfbMs: null,
-      totalMs: Date.now() - startedAt
-    }
-  };
 };
 
 const getStored = (key, fallback) => {
@@ -845,8 +826,6 @@ const closeProbeModal = () => {
   closeModal(modalConfigs.probe);
 };
 
-const formatProbeLatency = (latencyMs) => (latencyMs == null ? "--" : latencyMs + " ms");
-
 const getProbeProgressText = () => {
   if (!state.models.length) {
     return "Load models first";
@@ -910,7 +889,7 @@ const renderProbeRows = () => {
 
     const latencyCell = document.createElement("td");
     latencyCell.className = "probe-latency";
-    latencyCell.textContent = formatProbeLatency(item.latencyMs);
+    latencyCell.textContent = formatDurationMs(item.latencyMs);
 
     const statusCell = document.createElement("td");
     statusCell.className = "probe-status is-" + item.status;
@@ -1241,7 +1220,7 @@ const hydrateModelSelection = () => {
 };
 
 const submitLoadModels = async () => {
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
   saveForm();
   state.lastModelsResult = null;
   clearModelSelection();
@@ -1288,7 +1267,7 @@ const submitLoadModels = async () => {
         provider: null
       },
       models: [],
-      timing: { ttfbMs: null, totalMs: Date.now() - startedAt },
+      timing: { ttfbMs: null, totalMs: getNowMs() - startedAt },
       error: { message: errorMessage },
       warnings: []
     };
@@ -1332,7 +1311,7 @@ invokeForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
   saveForm();
   invokeBtn.disabled = true;
   state.lastInvokeResult = null;
@@ -1384,7 +1363,7 @@ invokeForm.addEventListener("submit", async (event) => {
         status: null,
         outputPreview: null
       },
-      timing: { ttfbMs: null, totalMs: Date.now() - startedAt },
+      timing: { ttfbMs: null, totalMs: getNowMs() - startedAt },
       error: { message: errorMessage },
       warnings: []
     };

@@ -2,6 +2,7 @@ import { AppError } from "../errors";
 import { fetchTextWithTiming } from "../http/fetch-json";
 import { classifyHttpError } from "../probe/classify-error";
 import { previewText } from "../probe/sanitize";
+import { getNowMs } from "../time/get-now-ms";
 import type {
   ApiMode,
   ChatMessage,
@@ -370,12 +371,12 @@ class OpenAICompatibleAdapter {
   async probeModels({ apiKey, apiMode, modelIds, messages, fetchImpl }: AdapterProbeOptions): Promise<ProbeModelsResponsePayload> {
     const requestId = buildRequestId();
     const startedAt = new Date().toISOString();
-    const overallStartedMs = Date.now();
+    const overallStartedMs = getNowMs();
     const results: ProbeModelResult[] = [];
 
     for (const model of modelIds) {
       const modelStartedAt = new Date().toISOString();
-      const modelStartedMs = Date.now();
+      const modelStartedMs = getNowMs();
 
       try {
         const attempt = await this.executeInvokeRequest({
@@ -441,7 +442,7 @@ class OpenAICompatibleAdapter {
           timing: {
             startedAt: modelStartedAt,
             ttfbMs: null,
-            totalMs: Date.now() - modelStartedMs
+            totalMs: getNowMs() - modelStartedMs
           },
           outputPreview: null,
           error: toErrorPayload(error)
@@ -461,7 +462,7 @@ class OpenAICompatibleAdapter {
       timing: {
         startedAt,
         ttfbMs: null,
-        totalMs: Date.now() - overallStartedMs
+        totalMs: getNowMs() - overallStartedMs
       },
       summary: {
         total: results.length,

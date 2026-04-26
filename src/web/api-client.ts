@@ -1,3 +1,5 @@
+import { getNowMs } from "./timing";
+
 const runtimeMode = window.location.protocol === "file:" ? "browser-direct" : "worker-proxy";
 
 const buildRequestId = () => {
@@ -207,7 +209,7 @@ const getInvokeFallbackMessage = (apiMode) =>
 
 const fetchTextWithTimingDirect = async ({ url, init, timeoutMs = 12_000, maxChars = 512_000 }) => {
   const controller = new AbortController();
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
   const timeout = setTimeout(() => controller.abort("timeout"), timeoutMs);
 
   try {
@@ -215,7 +217,7 @@ const fetchTextWithTimingDirect = async ({ url, init, timeoutMs = 12_000, maxCha
       ...init,
       signal: controller.signal
     });
-    const ttfbMs = Date.now() - startedAt;
+    const ttfbMs = getNowMs() - startedAt;
     const contentLength = Number(response.headers.get("content-length"));
 
     if (Number.isFinite(contentLength) && contentLength > maxChars) {
@@ -231,7 +233,7 @@ const fetchTextWithTimingDirect = async ({ url, init, timeoutMs = 12_000, maxCha
       response,
       text,
       ttfbMs,
-      totalMs: Date.now() - startedAt
+      totalMs: getNowMs() - startedAt
     };
   } catch (error) {
     if (error && typeof error === "object" && typeof error.type === "string") {
@@ -431,13 +433,13 @@ const requestInvokeDirect = async ({ apiKey, baseUrl, apiMode, model, messages }
 const requestProbeModelsDirect = async ({ apiKey, baseUrl, apiMode, modelIds, messages }) => {
   const requestId = buildRequestId();
   const startedAt = new Date().toISOString();
-  const overallStartedMs = Date.now();
+  const overallStartedMs = getNowMs();
   const normalizedBaseUrl = normalizeDirectBaseUrl(baseUrl);
   const results = [];
 
   for (const model of modelIds) {
     const modelStartedAt = new Date().toISOString();
-    const modelStartedMs = Date.now();
+    const modelStartedMs = getNowMs();
 
     try {
       const attempt = await executeDirectInvokeRequest({
@@ -503,7 +505,7 @@ const requestProbeModelsDirect = async ({ apiKey, baseUrl, apiMode, modelIds, me
         timing: {
           startedAt: modelStartedAt,
           ttfbMs: null,
-          totalMs: Date.now() - modelStartedMs
+          totalMs: getNowMs() - modelStartedMs
         },
         outputPreview: null,
         error: toPayloadError(error)
@@ -523,7 +525,7 @@ const requestProbeModelsDirect = async ({ apiKey, baseUrl, apiMode, modelIds, me
     timing: {
       startedAt,
       ttfbMs: null,
-      totalMs: Date.now() - overallStartedMs
+      totalMs: getNowMs() - overallStartedMs
     },
     summary: {
       total: results.length,

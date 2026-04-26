@@ -7,9 +7,12 @@
   "scripts": {
     "build": "npm run build:web",
     "build:web": "node ./scripts/build-web.mjs",
+    "build:html": "node ./scripts/build-html.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "npm run check:worker && npm run check:web",
+    "types": "wrangler types",
+    "check:types": "wrangler types --check",
+    "check": "npm run check:types && npm run check:worker && npm run check:web",
     "check:worker": "tsc --noEmit",
     "check:web": "tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run"

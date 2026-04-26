@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +39,34 @@ const buildScript = () => {
   });
 };
 
+const appendJsExtensionIfNeeded = (_, prefix, specifier, suffix) => {
+  if (/\.[a-z0-9]+$/i.test(specifier)) {
+    return prefix + specifier + suffix;
+  }
+
+  return prefix + specifier + ".js" + suffix;
+};
+
+const rewriteRelativeJsImports = async () => {
+  const entries = await readdir(publicAssetsDir, { withFileTypes: true });
+  const jsFiles = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".js"));
+
+  await Promise.all(
+    jsFiles.map(async (entry) => {
+      const filePath = resolve(publicAssetsDir, entry.name);
+      const source = await readFile(filePath, "utf8");
+      const output = source
+        .replaceAll(/(from\s+["'])(\.{1,2}\/[^"'?#]+)(["'])/g, appendJsExtensionIfNeeded)
+        .replaceAll(/(import\s+["'])(\.{1,2}\/[^"'?#]+)(["'])/g, appendJsExtensionIfNeeded);
+
+      if (output !== source) {
+        await writeFile(filePath, output, "utf8");
+      }
+    })
+  );
+};
+
 await mkdir(publicAssetsDir, { recursive: true });
 buildScript();
+await rewriteRelativeJsImports();
 await Promise.all([buildHtml(), buildStyles()]);

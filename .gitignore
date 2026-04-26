@@ -13,8 +13,7 @@
 /.wrangler/
 /dist/
 /coverage/
-/public/index.html
-/public/assets/
+/public/
 *.tsbuildinfo
 
 # Logs

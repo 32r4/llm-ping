@@ -9,5 +9,5 @@
     "rootDir": "src/web",
     "outDir": "public/assets"
   },
-  "include": ["src/web/app.ts"]
+  "include": ["src/web/**/*.ts"]
 }

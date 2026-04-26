@@ -1,3 +1,5 @@
+import { sendInvokeRequest, sendModelsRequest, sendProbeRequest } from "./api-client";
+
 const storageKeys = {
   theme: "llm-ping:theme",
   form: "llm-ping:form",
@@ -983,20 +985,16 @@ const runProbeModels = async () => {
 
       renderProbeRows();
 
-      const response = await fetch("/api/probe-models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: apiKeyInput.value.trim(),
-          baseUrl: baseUrlInput.value.trim(),
-          apiMode: apiModeValue.value,
-          modelIds: chunk,
-          messages: [{ role: "user", content: promptInput.value.trim() || "hi" }]
-        })
+      const result = await sendProbeRequest({
+        apiKey: apiKeyInput.value.trim(),
+        baseUrl: baseUrlInput.value.trim(),
+        apiMode: apiModeValue.value,
+        modelIds: chunk,
+        messages: [{ role: "user", content: promptInput.value.trim() || "hi" }]
       });
 
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
+      const payload = result.payload;
+      if (!result.ok || !payload.ok) {
         const message = payload?.error?.message || "Batch probe failed.";
         const pendingModels = state.probeRows
           .filter((item) => item.selectable && item.selected && (item.status === "idle" || item.status === "testing"))
@@ -1009,7 +1007,7 @@ const runProbeModels = async () => {
             continue;
           }
 
-          row.statusCode = response.status || null;
+          row.statusCode = result.status || null;
         }
         state.probeCompleted = state.probeTotal;
         showToast("Batch probe failed", message);
@@ -1182,20 +1180,15 @@ connectForm.addEventListener("submit", async (event) => {
   setModelsPending(true);
 
   try {
-    const response = await fetch("/api/models", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        apiKey: apiKeyInput.value.trim(),
-        baseUrl: baseUrlInput.value.trim()
-      })
+    const result = await sendModelsRequest({
+      apiKey: apiKeyInput.value.trim(),
+      baseUrl: baseUrlInput.value.trim()
     });
-
-    const payload = await response.json();
+    const payload = result.payload;
     state.lastModelsResult = payload;
     renderRawSignals();
 
-    if (!response.ok || !payload.ok) {
+    if (!result.ok || !payload.ok) {
       pushFailureFeedback({
         action: "models",
         baseUrl: payload?.target?.baseUrl || baseUrlInput.value.trim(),
@@ -1261,23 +1254,18 @@ invokeForm.addEventListener("submit", async (event) => {
   setInvokePending(true);
 
   try {
-    const response = await fetch("/api/invoke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        apiKey: apiKeyInput.value.trim(),
-        baseUrl: baseUrlInput.value.trim(),
-        apiMode: requestedApiMode,
-        model: state.selectedModel,
-        messages: [{ role: "user", content: promptInput.value.trim() || "hi" }]
-      })
+    const result = await sendInvokeRequest({
+      apiKey: apiKeyInput.value.trim(),
+      baseUrl: baseUrlInput.value.trim(),
+      apiMode: requestedApiMode,
+      model: state.selectedModel,
+      messages: [{ role: "user", content: promptInput.value.trim() || "hi" }]
     });
-
-    const payload = await response.json();
+    const payload = result.payload;
     state.lastInvokeResult = payload;
     renderRawSignals();
 
-    if (!response.ok || !payload.ok) {
+    if (!result.ok || !payload.ok) {
       pushFailureFeedback({
         action: "invoke",
         baseUrl: payload?.target?.baseUrl || baseUrlInput.value.trim(),

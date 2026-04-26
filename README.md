@@ -8,6 +8,10 @@ LLM Ping 是一个部署在 Cloudflare Workers 上的轻量探测工具，用来
 
 ![LLM Ping 界面示例](./assets/llm-ping-ui.png)
 
+在线示例：<https://llm-ping.32r4.asia>
+
+> 安全提示：在线示例站点仅供体验，请不要输入高价值或生产环境 API Key。建议使用临时测试 Key，并在使用后及时轮换或删除；如需更高安全性，请自行本地部署。
+
 ## 核心能力
 
 - 请求上游 `/v1/models` 并加载模型列表
